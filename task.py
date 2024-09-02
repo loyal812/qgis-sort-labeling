@@ -1,10 +1,12 @@
 import os
+import random
 import pandas as pd
 import geopandas as gpd
 import geohash2 as gh  # Import geohash library
 from shapely.geometry import Point
 from collections import Counter
 from qgis.core import QgsVectorLayer, QgsProject
+import matplotlib.colors as mcolors
 
 print(os.path.dirname(os.path.abspath(__file__)))
 # Folder Dynamic Path
@@ -20,7 +22,7 @@ data['timestamp'] = pd.to_datetime(data['timestamp'])
 unique_uuids = set(data['uuid'])
 
 # Create a GeoDataFrame from the DataFrame
-gdf = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data['longitude'], data['latitude']))
+gdf = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data['longitude'], data['latitude']), crs='EPSG:4326')
 
 # Convert latitude and longitude to the desired geohash precision level
 gdf['geohash'] = gdf.apply(lambda row: gh.encode(row['latitude'], row['longitude'], precision=6), axis=1)
@@ -51,19 +53,29 @@ result = gdf.groupby('geohash').apply(count_unique_labels)
 gdf_sorted = gdf.groupby('geohash').apply(sort_by_datetime)
 
 # Save 'result' GeoDataFrame as a CSV file
-result.to_csv(f'{folder_path}/result.csv', index=True)  # Change 'result.csv' to your desired filename
+result.to_csv(f'{folder_path}/result.csv', index=True)  # Change 'result.csv' to desired filename
 
 # Save 'gdf_sorted' GeoDataFrame as a CSV file
-gdf_sorted.to_csv(f'{folder_path}/gdf_sorted.csv', index=False)  # Change 'gdf_sorted.csv' to your desired filename
+gdf_sorted.to_csv(f'{folder_path}/gdf_sorted.csv', index=False)  # Change 'gdf_sorted.csv' to desired filename
 
 print("Save the result Done!!!")
 
 # Drop the original timestamp column
 gdf = gdf.drop(columns=['timestamp'])
 
+# Get unique labels in dataset
+unique_labels = gdf['label'].unique()
+
+# Generate random colors for each unique label
+# label_colors = {label: mcolors.to_hex((random.random(), random.random(), random.random())) for label in unique_labels}
+label_colors = {label: '#' + '%06x' % random.randint(0, 0xFFFFFF) for label in unique_labels}
+
+# Map label values to random colors
+gdf['marker_color'] = gdf['label'].map(label_colors)
+
 # Convert the Pandas DataFrame to a Shapefile
 shp_file = f'{folder_path}/gdf_sorted.shp'  # Output Shapefile path
-gdf.to_file(shp_file)
+gdf.to_file(shp_file, crs='EPSG:4326')
 
 # Create a QgsVectorLayer object from the Shapefile
 layer_name = 'gdf_sorted'
@@ -72,8 +84,21 @@ layer = QgsVectorLayer(shp_file, layer_name, 'ogr')
 # Check if the layer was loaded successfully
 if not layer.isValid():
     print(f"Layer '{layer_name}' failed to load!")
+else:
+     # Create categorized symbols for each label
+    categories = []
+    for label, color in label_colors.items():
+        symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+        symbol.setColor(QColor(color))
+        category = QgsRendererCategory(str(label), symbol, str(label))
+        categories.append(category)
 
-# Add the layer to the QGIS project
-QgsProject.instance().addMapLayer(layer)
+    # Set up the renderer using categorized symbols
+    renderer = QgsCategorizedSymbolRenderer('label', categories)
+    layer.setRenderer(renderer)
+    layer.triggerRepaint()
 
-print("Layer added to QGIS!")
+    # Add the layer to the QGIS project
+    QgsProject.instance().addMapLayer(layer)
+
+    print("Layer added to QGIS!")
