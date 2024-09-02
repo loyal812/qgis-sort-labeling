@@ -1,11 +1,17 @@
+import os
 import pandas as pd
 import geopandas as gpd
 import geohash2 as gh  # Import geohash library
 from shapely.geometry import Point
 from collections import Counter
+from qgis.core import QgsVectorLayer, QgsProject
+
+print(os.path.dirname(os.path.abspath(__file__)))
+# Folder Dynamic Path
+folder_path = os.path.dirname(os.path.abspath(__file__))
 
 # Read the CSV file into a Pandas DataFrame
-data = pd.read_csv('./sample.csv')
+data = pd.read_csv(f'{folder_path}/sample.csv')
 
 # Convert timestamp column to datetime
 data['timestamp'] = pd.to_datetime(data['timestamp'])
@@ -44,10 +50,30 @@ result = gdf.groupby('geohash').apply(count_unique_labels)
 # Sort points by date and time within each geohash
 gdf_sorted = gdf.groupby('geohash').apply(sort_by_datetime)
 
-# Display or export the resulting GeoDataFrame or the count of unique labels per geohash
-
 # Save 'result' GeoDataFrame as a CSV file
-result.to_csv('./result.csv', index=True)  # Change 'result.csv' to your desired filename
+result.to_csv(f'{folder_path}/result.csv', index=True)  # Change 'result.csv' to your desired filename
 
 # Save 'gdf_sorted' GeoDataFrame as a CSV file
-gdf_sorted.to_csv('./gdf_sorted.csv', index=False)  # Change 'gdf_sorted.csv' to your desired filename
+gdf_sorted.to_csv(f'{folder_path}/gdf_sorted.csv', index=False)  # Change 'gdf_sorted.csv' to your desired filename
+
+print("Save the result Done!!!")
+
+# Drop the original timestamp column
+gdf = gdf.drop(columns=['timestamp'])
+
+# Convert the Pandas DataFrame to a Shapefile
+shp_file = f'{folder_path}/gdf_sorted.shp'  # Output Shapefile path
+gdf.to_file(shp_file)
+
+# Create a QgsVectorLayer object from the Shapefile
+layer_name = 'gdf_sorted'
+layer = QgsVectorLayer(shp_file, layer_name, 'ogr')
+
+# Check if the layer was loaded successfully
+if not layer.isValid():
+    print(f"Layer '{layer_name}' failed to load!")
+
+# Add the layer to the QGIS project
+QgsProject.instance().addMapLayer(layer)
+
+print("Layer added to QGIS!")
