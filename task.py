@@ -77,6 +77,24 @@ gdf['marker_color'] = gdf['label'].map(label_colors)
 shp_file = f'{folder_path}/gdf_sorted.shp'  # Output Shapefile path
 gdf.to_file(shp_file, crs='EPSG:4326')
 
+# Define the URL of the WMS service
+wms_url = 'type=xyz&url=http://tile.openstreetmap.org/{z}/{x}/{y}.png'
+
+# Set layer name
+layer_name = 'OpenStreetMap'
+
+# Add the WMS layer to the QGIS project
+layer_map = QgsRasterLayer(wms_url, layer_name, 'wms')
+
+# Check if the layer was loaded successfully
+if not layer_map.isValid():
+    print(f"Layer '{layer_name}' failed to load!")
+else:
+    # Add the layer to the QGIS project
+    QgsProject.instance().addMapLayer(layer_map)
+
+    print(f"Layer '{layer_name}' added to QGIS!")
+
 # Create a QgsVectorLayer object from the Shapefile
 layer_name = 'gdf_sorted'
 layer = QgsVectorLayer(shp_file, layer_name, 'ogr')
@@ -101,4 +119,4 @@ else:
     # Add the layer to the QGIS project
     QgsProject.instance().addMapLayer(layer)
 
-    print("Layer added to QGIS!")
+    print(f"Layer '{layer_name}' added to QGIS!")
